@@ -80,7 +80,7 @@ Increment the version number in your package.json file. This ensures that your n
 
 ```json
 {
-  "version": "16.0.5"
+  "version": "16.0.6"
 }
 ```
 
