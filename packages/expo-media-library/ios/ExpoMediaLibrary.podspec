@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
   s.platforms      = {
     :ios => '15.1'
   }
-  s.source         = { git: 'https://github.com/expo/expo.git' }
+  s.source = { git: 'https://github.com/dsemelianov/expo-media-library.git', tag: s.version.to_s }
   s.static_framework = true
   s.frameworks     = 'Photos','PhotosUI'
 

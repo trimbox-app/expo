@@ -341,18 +341,24 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     var result = exportAssetInfo(asset: asset) ?? [:]
-    let imageOptions = PHContentEditingInputRequestOptions()
-    imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
+    // Fetch the first available asset resource (e.g., original image file)
+    if let resource = PHAssetResource.assetResources(for: asset).first {
+      let options = PHAssetResourceRequestOptions()
+      options.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
 
-    asset.requestContentEditingInput(with: imageOptions) { contentInput, info in
-      result["localUri"] = contentInput?.fullSizeImageURL?.absoluteString
-      result["orientation"] = contentInput?.fullSizeImageOrientation
+      PHAssetResourceManager.default().requestData(for: resource, options: options, dataReceivedHandler: { data in
+          if let imageSource = CGImageSourceCreateWithData(data as CFData, nil) {
+              let metadata = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
+              if let exif = metadata as? [String: Any] {
+                  result["exif"] = exif
+              }
+          }
+      }, completionHandler: {
+          promise.resolve(result)
+      })
+    } else {
       if !options.shouldDownloadFromNetwork {
-        result["isNetworkAsset"] = info[PHContentEditingInputResultIsInCloudKey] ?? false
-      }
-
-      if let url = contentInput?.fullSizeImageURL, let ciImage = CIImage(contentsOf: url) {
-        result["exif"] = ciImage.properties
+          result["isNetworkAsset"] = true
       }
       promise.resolve(result)
     }
@@ -363,50 +369,40 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     let videoOptions = PHVideoRequestOptions()
     videoOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
 
-    PHImageManager.default().requestAVAsset(forVideo: asset, options: videoOptions) { asset, _, info in
-      guard let asset = asset as? AVComposition else {
-        let urlAsset = asset as? AVURLAsset
-        result["localUri"] = urlAsset?.url.absoluteString
+    PHImageManager.default().requestAVAsset(forVideo: asset, options: videoOptions) { avAsset, _, info in
+      if let urlAsset = avAsset as? AVURLAsset {
+        result["localUri"] = urlAsset.url.absoluteString
+
+        // Extract metadata using AVAsset properties
+        let metadata = self.extractMetadata(from: urlAsset)
+        result["metadata"] = metadata
+
         if !options.shouldDownloadFromNetwork {
-          result["isNetworkAsset"] = info?[PHImageResultIsInCloudKey] ?? false
+            result["isNetworkAsset"] = info?[PHImageResultIsInCloudKey] ?? false
         }
         promise.resolve(result)
-        return
-      }
-
-      let directory = self.appContext?.config.cacheDirectory?.appendingPathComponent("MediaLibrary")
-      FileSystemUtilities.ensureDirExists(at: directory)
-      let videoOutputFileName = "slowMoVideo-\(Int.random(in: 0...999)).mov"
-      guard let videoFileOutputPath = directory?.appendingPathComponent(videoOutputFileName) else {
-        promise.reject(InvalidPathException())
-        return
-      }
-
-      let videoFileOutputURL = URL(string: videoFileOutputPath.path)
-
-      let exporter = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality)
-      exporter?.outputURL = videoFileOutputURL
-      exporter?.outputFileType = AVFileType.mov
-      exporter?.shouldOptimizeForNetworkUse = true
-
-      exporter?.exportAsynchronously {
-        switch exporter?.status {
-        case .completed:
-          result["localUri"] = videoFileOutputURL?.absoluteString
+      } else {
+          // If the video is not locally available and network access is not allowed
           if !options.shouldDownloadFromNetwork {
-            result["isNetworkAsset"] = info?[PHImageResultIsInCloudKey] ?? false
+              result["isNetworkAsset"] = info?[PHImageResultIsInCloudKey] ?? false
           }
-
           promise.resolve(result)
-        case .failed:
-          promise.reject(ExportSessionFailedException())
-        case .cancelled:
-          promise.reject(ExportSessionCancelledException())
-        default:
-          promise.reject(ExportSessionUnknownException())
-        }
       }
     }
+  }
+
+  // Helper function to extract metadata from AVURLAsset
+  private func extractMetadata(from asset: AVURLAsset) -> [String: Any] {
+    var metadataResult: [String: Any] = [:]
+    for format in asset.availableMetadataFormats {
+      let metadataItems = asset.metadata(forFormat: format)
+      for item in metadataItems {
+          if let key = item.commonKey?.rawValue, let value = item.value {
+              metadataResult[key] = value
+          }
+      }
+    }
+    return metadataResult
   }
 
   private func checkPermissions(promise: Promise) -> Bool {

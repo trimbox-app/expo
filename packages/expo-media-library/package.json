@@ -1,6 +1,6 @@
 {
-  "name": "expo-media-library",
-  "version": "16.0.3",
+  "name": "@dsemelianov/expo-media-library",
+  "version": "16.0.4",
   "description": "Provides access to user's media library.",
   "main": "build/MediaLibrary.js",
   "types": "build/MediaLibrary.d.ts",
@@ -25,7 +25,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/expo/expo.git",
+    "url": "https://github.com/dsemelianov/expo.git",
     "directory": "packages/expo-media-library"
   },
   "bugs": {
@@ -43,5 +43,8 @@
   "peerDependencies": {
     "expo": "*",
     "react-native": "*"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
   }
 }
