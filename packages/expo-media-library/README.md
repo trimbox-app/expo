@@ -71,3 +71,34 @@ Run `npx pod-install` after installing the npm package.
 # Contributing
 
 Contributions are very welcome! Please refer to guidelines described in the [contributing guide](https://github.com/expo/expo#contributing).
+
+# David's Steps to Publish a New Version:
+
+## 1. Update the Version in package.json:
+
+Increment the version number in your package.json file. This ensures that your new changes are recognized as a new version.
+
+```json
+{
+  "version": "16.0.5"
+}
+```
+
+## 2. Commit and Tag the New Version:
+
+Commit your changes and create a tag that matches the new version number. This tag is crucial because the podspec file references the tag when pulling the source.
+
+```bash
+git add .
+git commit -m "Updated ExpoMediaLibrary podspec with custom source"
+git tag 16.0.4
+git push origin --tags
+```
+
+## 3. Publish the New Version to GitHub Packages:
+
+After tagging, you can publish your package using npm.
+
+```bash
+npm publish --registry=https://npm.pkg.github.com
+```

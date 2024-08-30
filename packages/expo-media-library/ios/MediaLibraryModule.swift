@@ -355,7 +355,11 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         
         // Optionally add other information from `info` if needed
         if !options.shouldDownloadFromNetwork {
-            result["isNetworkAsset"] = info[PHImageResultIsInCloudKey] ?? false
+            if let info = info, let isNetworkAsset = info[PHImageResultIsInCloudKey] as? Bool {
+                result["isNetworkAsset"] = isNetworkAsset
+            } else {
+                result["isNetworkAsset"] = false
+            }
         }
         
         // Resolve the promise with the result dictionary
@@ -364,19 +368,19 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   }
 
   private func resolveVideo(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    // Configure PHImageRequestOptions
-    let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
+    // Configure PHVideoRequestOptions
+    let videoOptions = PHVideoRequestOptions()
+    videoOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
     
     // Request video data
-    PHImageManager.default().requestAVAsset(forVideo: asset, options: imageOptions) { avAsset, audioMix, info in
+    PHImageManager.default().requestAVAsset(forVideo: asset, options: videoOptions) { avAsset, audioMix, info in
         var result: [String: Any] = [:]
         
         if let avAsset = avAsset as? AVURLAsset {
             let url = avAsset.url
             let asset = AVAsset(url: url)
             let duration = asset.duration.seconds
-            let tracks = asset.tracks(withMediaType: .video)
+            let tracks = asset.tracks(withMediaType: AVMediaType.video)
             
             if let videoTrack = tracks.first {
                 let size = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
@@ -388,7 +392,11 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             
             // Optionally add other information from `info` if needed
             if !options.shouldDownloadFromNetwork {
-                result["isNetworkAsset"] = info[PHImageResultIsInCloudKey] ?? false
+                if let info = info, let isNetworkAsset = info[PHImageResultIsInCloudKey] as? Bool {
+                    result["isNetworkAsset"] = isNetworkAsset
+                } else {
+                    result["isNetworkAsset"] = false
+                }
             }
         }
         
