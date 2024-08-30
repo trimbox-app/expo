@@ -340,54 +340,60 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   }
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    var result = exportAssetInfo(asset: asset) ?? [:]
-    // Fetch the first available asset resource (e.g., original image file)
-    if let resource = PHAssetResource.assetResources(for: asset).first {
-      let options = PHAssetResourceRequestOptions()
-      options.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
+    // Configure PHImageRequestOptions
+    let imageOptions = PHImageRequestOptions()
+    imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
 
-      PHAssetResourceManager.default().requestData(for: resource, options: options, dataReceivedHandler: { data in
-          if let imageSource = CGImageSourceCreateWithData(data as CFData, nil) {
-              let metadata = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
-              if let exif = metadata as? [String: Any] {
-                  result["exif"] = exif
-              }
-          }
-      }, completionHandler: {
-          promise.resolve(result)
-      })
-    } else {
-      if !options.shouldDownloadFromNetwork {
-          result["isNetworkAsset"] = true
-      }
-      promise.resolve(result)
+    // Request image data and orientation
+    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, _, _, info in
+        var result: [String: Any] = [:]
+        
+        // Extract EXIF properties if data is available
+        if let data = data, let ciImage = CIImage(data: data) {
+            result["exif"] = ciImage.properties
+        }
+        
+        // Optionally add other information from `info` if needed
+        if !options.shouldDownloadFromNetwork {
+            result["isNetworkAsset"] = info[PHImageResultIsInCloudKey] ?? false
+        }
+        
+        // Resolve the promise with the result dictionary
+        promise.resolve(result)
     }
   }
 
   private func resolveVideo(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    var result = exportAssetInfo(asset: asset) ?? [:]
-    let videoOptions = PHVideoRequestOptions()
-    videoOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
-
-    PHImageManager.default().requestAVAsset(forVideo: asset, options: videoOptions) { avAsset, _, info in
-      if let urlAsset = avAsset as? AVURLAsset {
-        result["localUri"] = urlAsset.url.absoluteString
-
-        // Extract metadata using AVAsset properties
-        let metadata = self.extractMetadata(from: urlAsset)
-        result["metadata"] = metadata
-
-        if !options.shouldDownloadFromNetwork {
-            result["isNetworkAsset"] = info?[PHImageResultIsInCloudKey] ?? false
+    // Configure PHImageRequestOptions
+    let imageOptions = PHImageRequestOptions()
+    imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
+    
+    // Request video data
+    PHImageManager.default().requestAVAsset(forVideo: asset, options: imageOptions) { avAsset, audioMix, info in
+        var result: [String: Any] = [:]
+        
+        if let avAsset = avAsset as? AVURLAsset {
+            let url = avAsset.url
+            let asset = AVAsset(url: url)
+            let duration = asset.duration.seconds
+            let tracks = asset.tracks(withMediaType: .video)
+            
+            if let videoTrack = tracks.first {
+                let size = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
+                let resolution = CGSize(width: abs(size.width), height: abs(size.height))
+                
+                result["duration"] = duration
+                result["resolution"] = resolution
+            }
+            
+            // Optionally add other information from `info` if needed
+            if !options.shouldDownloadFromNetwork {
+                result["isNetworkAsset"] = info[PHImageResultIsInCloudKey] ?? false
+            }
         }
+        
+        // Resolve the promise with the result dictionary
         promise.resolve(result)
-      } else {
-          // If the video is not locally available and network access is not allowed
-          if !options.shouldDownloadFromNetwork {
-              result["isNetworkAsset"] = info?[PHImageResultIsInCloudKey] ?? false
-          }
-          promise.resolve(result)
-      }
     }
   }
 
