@@ -88,6 +88,8 @@ Increment the version number in your package.json file. This ensures that your n
 
 Commit your changes and create a tag that matches the new version number. This tag is crucial because the podspec file references the tag when pulling the source.
 
+Run the following from packages/expo-media-library:
+
 ```bash
 git add .
 git commit -m "Updated ExpoMediaLibrary podspec with custom source"

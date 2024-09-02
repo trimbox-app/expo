@@ -344,37 +344,28 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
     imageOptions.deliveryMode = .fastFormat
     
-    PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 1, height: 1), contentMode: .aspectFit, options: imageOptions) { image, info in
+    // Request image data for metadata extraction
+    PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
       var result: [String: Any] = [:]
       
       if let error = info?[PHImageErrorKey] as? Error {
-        // Handle errors in fetching the image
+        // Handle errors in fetching the image data
         promise.reject(error)
         return
       }
       
-      // Handle the image and extract metadata if needed
-      if let image = image {
-        // Convert UIImage to CGImage to get the size (if needed)
-        if let cgImage = image.cgImage {
-          let width = cgImage.width
-          let height = cgImage.height
-
-          // Add image size to result
-          result["imageSize"] = ["width": width, "height": height]
-        }
-      } else {
-        // Handle cases where image is nil
-        result["imageSize"] = ["width": 0, "height": 0]
-      }
-        
-      // Extract EXIF metadata using another method
-      if let data = info?[PHImageResultFileURLKey] as? URL {
-        if let source = CGImageSourceCreateWithURL(data as CFURL, nil),
+      if let data = data {
+        // Extract EXIF metadata
+        if let source = CGImageSourceCreateWithData(data as NSData, nil),
           let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
           result["exif"] = metadata["{Exif}"]
         }
+
+        // Get file size
+        let fileSize = data.count
+        result["fileSize"] = fileSize
       } else {
+        // Handle cases where data is nil
         result["exif"] = nil
       }
       
@@ -391,6 +382,8 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
       promise.resolve(result)
     }
   }
+
+
 
   private func resolveVideo(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     // Configure PHVideoRequestOptions
