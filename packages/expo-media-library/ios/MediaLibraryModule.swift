@@ -343,35 +343,44 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
     imageOptions.deliveryMode = .fastFormat
-    PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
+    
+    PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 1, height: 1), contentMode: .aspectFit, options: imageOptions) { image, info in
       var result: [String: Any] = [:]
       
       if let error = info?[PHImageErrorKey] as? Error {
-        // Handle errors in fetching the image data
-        completion(nil, error)
+        // Handle errors in fetching the image
+        promise.reject(error)
         return
       }
       
-      if let data = data {
-        // Get file size
-        let fileSize = data.count
+      // Handle the image and extract metadata if needed
+      if let image = image {
+        // Convert UIImage to CGImage to get the size (if needed)
+        if let cgImage = image.cgImage {
+          let width = cgImage.width
+          let height = cgImage.height
 
-        // Extract EXIF metadata
-        if let source = CGImageSourceCreateWithData(data as NSData, nil),
-            let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-            result["exif"] = metadata["{Exif}"]
+          // Add image size to result
+          result["imageSize"] = ["width": width, "height": height]
         }
-
-        // Add file size to result
-        result["fileSize"] = fileSize
       } else {
-        // Handle cases where data is nil
+        // Handle cases where image is nil
+        result["imageSize"] = ["width": 0, "height": 0]
+      }
+        
+      // Extract EXIF metadata using another method
+      if let data = info?[PHImageResultFileURLKey] as? URL {
+        if let source = CGImageSourceCreateWithURL(data as CFURL, nil),
+          let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+          result["exif"] = metadata["{Exif}"]
+        }
+      } else {
         result["exif"] = nil
       }
       
-      // Optionally add other information from `info` if needed
+      // Optionally add other information from `info`
       if !options.shouldDownloadFromNetwork {
-        if let info = info, let isNetworkAsset = info[PHImageResultIsInCloudKey] as? Bool {
+        if let isNetworkAsset = info?[PHImageResultIsInCloudKey] as? Bool {
           result["isNetworkAsset"] = isNetworkAsset
         } else {
           result["isNetworkAsset"] = false
