@@ -340,30 +340,46 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   }
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    // Configure PHImageRequestOptions
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
+    imageOptions.deliveryMode = .fastFormat
+    PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
+      var result: [String: Any] = [:]
+      
+      if let error = info?[PHImageErrorKey] as? Error {
+        // Handle errors in fetching the image data
+        completion(nil, error)
+        return
+      }
+      
+      if let data = data {
+        // Get file size
+        let fileSize = data.count
 
-    // Request image data and orientation
-    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, _, _, info in
-        var result: [String: Any] = [:]
-        
-        // Extract EXIF properties if data is available
-        if let data = data, let ciImage = CIImage(data: data) {
-            result["exif"] = ciImage.properties
+        // Extract EXIF metadata
+        if let source = CGImageSourceCreateWithData(data as NSData, nil),
+            let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+            result["exif"] = metadata["{Exif}"]
         }
-        
-        // Optionally add other information from `info` if needed
-        if !options.shouldDownloadFromNetwork {
-            if let info = info, let isNetworkAsset = info[PHImageResultIsInCloudKey] as? Bool {
-                result["isNetworkAsset"] = isNetworkAsset
-            } else {
-                result["isNetworkAsset"] = false
-            }
+
+        // Add file size to result
+        result["fileSize"] = fileSize
+      } else {
+        // Handle cases where data is nil
+        result["exif"] = nil
+      }
+      
+      // Optionally add other information from `info` if needed
+      if !options.shouldDownloadFromNetwork {
+        if let info = info, let isNetworkAsset = info[PHImageResultIsInCloudKey] as? Bool {
+          result["isNetworkAsset"] = isNetworkAsset
+        } else {
+          result["isNetworkAsset"] = false
         }
-        
-        // Resolve the promise with the result dictionary
-        promise.resolve(result)
+      }
+      
+      // Resolve the promise with the result dictionary
+      promise.resolve(result)
     }
   }
 
@@ -374,34 +390,35 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     
     // Request video data
     PHImageManager.default().requestAVAsset(forVideo: asset, options: videoOptions) { avAsset, audioMix, info in
-        var result: [String: Any] = [:]
+      var result: [String: Any] = [:]
         
-        if let avAsset = avAsset as? AVURLAsset {
-            let url = avAsset.url
-            let asset = AVAsset(url: url)
-            let duration = asset.duration.seconds
-            let tracks = asset.tracks(withMediaType: AVMediaType.video)
+      if let avAsset = avAsset as? AVURLAsset {
+        let duration = avAsset.duration.seconds
+        let tracks = avAsset.tracks(withMediaType: AVMediaType.video)
+          
+        if let videoTrack = tracks.first {
+          let size = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
+          let resolution = CGSize(width: abs(size.width), height: abs(size.height))
             
-            if let videoTrack = tracks.first {
-                let size = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
-                let resolution = CGSize(width: abs(size.width), height: abs(size.height))
-                
-                result["duration"] = duration
-                result["resolution"] = resolution
-            }
-            
-            // Optionally add other information from `info` if needed
-            if !options.shouldDownloadFromNetwork {
-                if let info = info, let isNetworkAsset = info[PHImageResultIsInCloudKey] as? Bool {
-                    result["isNetworkAsset"] = isNetworkAsset
-                } else {
-                    result["isNetworkAsset"] = false
-                }
-            }
+          result["duration"] = duration
+          result["resolution"] = resolution
         }
+            
+        // Optionally add other information from `info` if needed
+        if !options.shouldDownloadFromNetwork {
+          if let info = info, let isNetworkAsset = info[PHImageResultIsInCloudKey] as? Bool {
+            result["isNetworkAsset"] = isNetworkAsset
+          } else {
+            result["isNetworkAsset"] = false
+          }
+        }
+      } else {
+        // Handle case where avAsset is not an AVURLAsset
+        result["error"] = "Failed to get AVURLAsset from PHAsset"
+      }
         
-        // Resolve the promise with the result dictionary
-        promise.resolve(result)
+      // Resolve the promise with the result dictionary
+      promise.resolve(result)
     }
   }
 
