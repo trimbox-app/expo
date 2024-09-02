@@ -348,6 +348,11 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
       var result: [String: Any] = [:]
       
+      // Get creation date
+      if let creationDate = asset.creationDate {
+          result["createdAt"] = creationDate
+      }
+
       if let error = info?[PHImageErrorKey] as? Error {
         // Handle errors in fetching the image data
         promise.reject(error)
@@ -359,6 +364,15 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         if let source = CGImageSourceCreateWithData(data as NSData, nil),
           let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
           result["exif"] = metadata["{Exif}"]
+          // Add GPS metadata if present
+          if let gpsData = metadata["{GPS}"] as? [String: Any] {
+            result["gps"] = gpsData
+          }
+                
+          // Add TIFF metadata if present
+          if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+            result["tiff"] = tiffData
+          }
         }
 
         // Get file size
