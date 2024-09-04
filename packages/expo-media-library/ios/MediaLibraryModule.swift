@@ -341,16 +341,16 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = options.shouldDownloadFromNetwork
+    imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
     imageOptions.deliveryMode = .fastFormat
-    
-    // Request image data for metadata extraction
+
+    // Attempt to request image data without network access
     PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
       var result: [String: Any] = [:]
-      
+
       // Get creation date
       if let creationDate = asset.creationDate {
-          result["createdAt"] = creationDate
+        result["createdAt"] = creationDate
       }
 
       if let error = info?[PHImageErrorKey] as? Error {
@@ -358,18 +358,15 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         promise.reject(error)
         return
       }
-      
+
       if let data = data {
-        // Extract EXIF metadata
+        // Extract EXIF, GPS, and TIFF metadata
         if let source = CGImageSourceCreateWithData(data as NSData, nil),
           let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
           result["exif"] = metadata["{Exif}"]
-          // Add GPS metadata if present
           if let gpsData = metadata["{GPS}"] as? [String: Any] {
             result["gps"] = gpsData
           }
-                
-          // Add TIFF metadata if present
           if let tiffData = metadata["{TIFF}"] as? [String: Any] {
             result["tiff"] = tiffData
           }
@@ -378,26 +375,43 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         // Get file size
         let fileSize = data.count
         result["fileSize"] = fileSize
-      } else {
-        // Handle cases where data is nil
-        result["exif"] = nil
-      }
-      
-      // Optionally add other information from `info`
-      if !options.shouldDownloadFromNetwork {
-        if let isNetworkAsset = info?[PHImageResultIsInCloudKey] as? Bool {
-          result["isNetworkAsset"] = isNetworkAsset
-        } else {
-          result["isNetworkAsset"] = false
+
+        // Resolve the promise with the result dictionary
+        promise.resolve(result)
+      } else if let isInCloud = info?[PHImageResultIsInCloudKey] as? Bool, isInCloud && options.shouldDownloadFromNetwork {
+        // If the image is only in iCloud, fetch the smallest possible version to extract metadata
+        imageOptions.isNetworkAccessAllowed = true  // Allow network access for this request
+        let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
+        PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
+          guard let image = image else {
+            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
+            return
+          }
+
+          // Convert UIImage to CGImage and extract metadata
+          if let cgImage = image.cgImage,
+            let imageData = CFDataCreate(kCFAllocatorDefault, cgImage.dataProvider!.data!.bytes.bindMemory(to: UInt8.self, capacity: cgImage.bytesPerRow * cgImage.height), cgImage.bytesPerRow * cgImage.height),
+            let source = CGImageSourceCreateWithData(imageData!, nil),
+            let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+            result["exif"] = metadata["{Exif}"]
+            if let gpsData = metadata["{GPS}"] as? [String: Any] {
+              result["gps"] = gpsData
+            }
+            if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+              result["tiff"] = tiffData
+            }
+          }
+
+          result["isNetworkAsset"] = true
+          promise.resolve(result)
         }
+      } else {
+        // Handle cases where data is nil and not in iCloud
+        result["exif"] = nil
+        promise.resolve(result)
       }
-      
-      // Resolve the promise with the result dictionary
-      promise.resolve(result)
     }
   }
-
-
 
   private func resolveVideo(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     // Configure PHVideoRequestOptions
