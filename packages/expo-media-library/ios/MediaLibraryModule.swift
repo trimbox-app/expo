@@ -390,15 +390,23 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
 
           // Convert UIImage to CGImage and extract metadata
           if let cgImage = image.cgImage,
-            let imageData = CFDataCreate(kCFAllocatorDefault, cgImage.dataProvider!.data!.bytes.bindMemory(to: UInt8.self, capacity: cgImage.bytesPerRow * cgImage.height), cgImage.bytesPerRow * cgImage.height),
-            let source = CGImageSourceCreateWithData(imageData!, nil),
-            let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-            result["exif"] = metadata["{Exif}"]
-            if let gpsData = metadata["{GPS}"] as? [String: Any] {
-              result["gps"] = gpsData
-            }
-            if let tiffData = metadata["{TIFF}"] as? [String: Any] {
-              result["tiff"] = tiffData
+            let dataProvider = cgImage.dataProvider,
+            let imageData = dataProvider.data {
+            let imageDataPointer = CFDataGetBytePtr(imageData)  // Get the raw byte pointer
+            let imageDataLength = CFDataGetLength(imageData)    // Get the data length
+
+            // Create CFData from the raw byte pointer
+            let cfData = CFDataCreate(kCFAllocatorDefault, imageDataPointer, imageDataLength)
+            
+            if let source = CGImageSourceCreateWithData(cfData!, nil),
+              let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+              result["exif"] = metadata["{Exif}"]
+              if let gpsData = metadata["{GPS}"] as? [String: Any] {
+                result["gps"] = gpsData
+              }
+              if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+                result["tiff"] = tiffData
+              }
             }
           }
 
@@ -412,6 +420,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
       }
     }
   }
+
 
   private func resolveVideo(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     // Configure PHVideoRequestOptions
