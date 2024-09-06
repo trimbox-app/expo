@@ -344,7 +344,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
     imageOptions.deliveryMode = .fastFormat
 
-    // Attempt to request image data without network access
+    // First, attempt to fetch the image locally using requestImageData
     PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
         var result: [String: Any] = [:]
 
@@ -374,11 +374,12 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             // Resolve the promise with the result dictionary
             promise.resolve(result)
 
-        } else if let isInCloud = info?[PHImageResultIsInCloudKey] as? Bool, isInCloud && options.shouldDownloadFromNetwork {
-            // If the image is only in iCloud, retry with network access allowed
-            imageOptions.isNetworkAccessAllowed = true  // Allow network access for this request
-            let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
+        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 {
+            // Handle the case where the image is not available locally (error 3164)
+            imageOptions.isNetworkAccessAllowed = true  // Enable network access
 
+            // Fetch a minimal 1x1 pixel image from iCloud
+            let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
             PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
                 guard let image = image else {
                     promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
@@ -412,15 +413,8 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             }
 
         } else {
-            // Handle cases where data is nil and not in iCloud
-            result["exif"] = nil
-            promise.resolve(result)
-        }
-
-        // Handle error if any occurred and image was not in iCloud or could not be downloaded
-        if let error = info?[PHImageErrorKey] as? Error {
-            promise.reject(error)
-            return
+            // Handle other errors or cases where image data is nil
+            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Image not available or other error"]))
         }
     }
   }
