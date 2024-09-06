@@ -376,7 +376,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
                 result["isNetworkAsset"] = true
                 promise.resolve(result)
             } else {
-                promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract metadata from image"]))
+                promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract metadata from image XXX"]))
             }
         } else {
             promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get image data from dataProvider"]))
