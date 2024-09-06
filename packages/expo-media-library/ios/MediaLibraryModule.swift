@@ -340,49 +340,40 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   }
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = true
-    // imageOptions.deliveryMode = .fastFormat
-    imageOptions.deliveryMode = .highQualityFormat  // Use high quality format to get metadata
-    imageOptions.isSynchronous = true  // Test with synchronous request
+    let resources = PHAssetResource.assetResources(for: asset)
+    guard let resource = resources.first else {
+        promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "No resources available for asset"]))
+        return
+    }
 
-    let targetSize = CGSize(width: 1, height: 1)  // Minimal size, just a pixel
-    PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
-        guard let image = image else {
-            if let error = info?[PHImageErrorKey] as? NSError {
-                promise.reject(error)
-            } else {
-                promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
-            }
+    let resourceOptions = PHAssetResourceRequestOptions()
+    resourceOptions.isNetworkAccessAllowed = true  // Allow fetching from iCloud
+
+    PHAssetResourceManager.default().requestData(for: resource, options: resourceOptions) { data, error in
+        guard let data = data, error == nil else {
+            promise.reject(error ?? NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch asset data"]))
             return
         }
 
-        var result: [String: Any] = [:]
-
-        if let cgImage = image.cgImage,
-            let dataProvider = cgImage.dataProvider,
-            let imageData = dataProvider.data {
-
-            if let cfData = CFDataCreate(kCFAllocatorDefault, CFDataGetBytePtr(imageData), CFDataGetLength(imageData)),
-                let source = CGImageSourceCreateWithData(cfData, nil),
-                let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-                result["exif"] = metadata["{Exif}"]
-                if let gpsData = metadata["{GPS}"] as? [String: Any] {
-                    result["gps"] = gpsData
-                }
-                if let tiffData = metadata["{TIFF}"] as? [String: Any] {
-                    result["tiff"] = tiffData
-                }
-                result["isNetworkAsset"] = true
-                promise.resolve(result)
-            } else {
-                promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract metadata from image XXX"]))
+        // Use CGImageSource to extract metadata from data
+        if let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+            var result: [String: Any] = [:]
+            result["exif"] = metadata["{Exif}"]
+            if let gpsData = metadata["{GPS}"] as? [String: Any] {
+                result["gps"] = gpsData
             }
+            if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+                result["tiff"] = tiffData
+            }
+            result["isNetworkAsset"] = true
+            promise.resolve(result)
         } else {
-            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get image data from dataProvider"]))
+            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract metadata from asset data"]))
         }
     }
-  }
+}
+
 
   private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
