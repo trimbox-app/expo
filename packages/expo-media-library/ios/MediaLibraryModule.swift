@@ -341,6 +341,51 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
+    imageOptions.isNetworkAccessAllowed = true  // Network access is allowed
+    imageOptions.deliveryMode = .fastFormat
+
+    // Fetch a minimal 1x1 pixel image from iCloud
+    let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
+    PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
+        guard let image = image else {
+            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
+            return
+        }
+
+        // Initialize result dictionary
+        var result: [String: Any] = [:]
+
+        // Convert UIImage to CGImage and extract metadata
+        if let cgImage = image.cgImage,
+            let dataProvider = cgImage.dataProvider,
+            let imageData = dataProvider.data {
+            let imageDataPointer = CFDataGetBytePtr(imageData)  // Get the raw byte pointer
+            let imageDataLength = CFDataGetLength(imageData)    // Get the data length
+
+            // Create CFData from the raw byte pointer
+            if let cfData = CFDataCreate(kCFAllocatorDefault, imageDataPointer, imageDataLength),
+                let source = CGImageSourceCreateWithData(cfData, nil),
+                let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+                result["exif"] = metadata["{Exif}"]
+                if let gpsData = metadata["{GPS}"] as? [String: Any] {
+                    result["gps"] = gpsData
+                }
+                if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+                    result["tiff"] = tiffData
+                }
+            } else {
+                promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract metadata from image"]))
+                return
+            }
+        }
+
+        result["isNetworkAsset"] = true
+        promise.resolve(result)
+    }
+  }
+
+  private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+    let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
     imageOptions.deliveryMode = .fastFormat
 
