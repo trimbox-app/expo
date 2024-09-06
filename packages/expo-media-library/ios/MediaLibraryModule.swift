@@ -342,9 +342,9 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = true
-    imageOptions.deliveryMode = .fastFormat
-    // imageOptions.deliveryMode = .highQualityFormat  // Use high quality format to get metadata
-    // imageOptions.isSynchronous = true  // Test with synchronous request
+    // imageOptions.deliveryMode = .fastFormat
+    imageOptions.deliveryMode = .highQualityFormat  // Use high quality format to get metadata
+    imageOptions.isSynchronous = true  // Test with synchronous request
 
     let targetSize = CGSize(width: 1, height: 1)  // Minimal size, just a pixel
     PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
