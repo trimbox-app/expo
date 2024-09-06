@@ -1,6 +1,6 @@
 {
   "name": "@dsemelianov/expo-media-library",
-  "version": "16.0.21",
+  "version": "16.0.22",
   "description": "Provides access to user's media library.",
   "main": "build/MediaLibrary.js",
   "types": "build/MediaLibrary.d.ts",

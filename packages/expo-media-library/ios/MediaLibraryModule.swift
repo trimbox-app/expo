@@ -349,9 +349,9 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     let resourceOptions = PHAssetResourceRequestOptions()
     resourceOptions.isNetworkAccessAllowed = true  // Allow fetching from iCloud
 
-    PHAssetResourceManager.default().requestData(for: resource, options: resourceOptions) { data, error in
-        guard let data = data, error == nil else {
-            promise.reject(error ?? NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch asset data"]))
+    PHAssetResourceManager.default().requestData(for: resource, options: resourceOptions, dataReceivedHandler: { data in
+        guard let data = data else {
+            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch asset data"]))
             return
         }
 
@@ -371,8 +371,13 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         } else {
             promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract metadata from asset data"]))
         }
-    }
+    }, completionHandler: { error in
+        if let error = error {
+            promise.reject(error)
+        }
+    })
 }
+
 
 
   private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
