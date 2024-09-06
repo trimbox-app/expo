@@ -350,11 +350,6 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     resourceOptions.isNetworkAccessAllowed = true  // Allow fetching from iCloud
 
     PHAssetResourceManager.default().requestData(for: resource, options: resourceOptions, dataReceivedHandler: { data in
-        guard let data = data else {
-            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch asset data"]))
-            return
-        }
-
         // Use CGImageSource to extract metadata from data
         if let source = CGImageSourceCreateWithData(data as CFData, nil),
            let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
@@ -377,7 +372,6 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         }
     })
 }
-
 
 
   private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
@@ -459,6 +453,134 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         }
     }
   }
+
+  // private func resolveImage(assets: [PHAsset], options: AssetInfoOptions, promise: Promise) {
+  //   // Create a dispatch group to track the completion of all metadata extraction tasks
+  //   let dispatchGroup = DispatchGroup()
+    
+  //   // Use a semaphore to limit concurrent operations, for example, max 4 concurrent extractions
+  //   let semaphore = DispatchSemaphore(value: 4)
+
+  //   // Result array to hold the metadata for each asset
+  //   var results: [[String: Any]] = []
+    
+  //   // Queue for safely adding to the results array
+  //   let resultQueue = DispatchQueue(label: "com.yourApp.resultQueue", attributes: .concurrent)
+
+  //   // Process each asset in parallel using DispatchQueue
+  //   for asset in assets {
+  //     dispatchGroup.enter()  // Enter the dispatch group for each asset
+  //     semaphore.wait()  // Limit the number of concurrent operations
+
+  //     DispatchQueue.global(qos: .userInitiated).async {
+  //       let imageOptions = PHImageRequestOptions()
+  //       imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
+  //       imageOptions.deliveryMode = .fastFormat
+
+  //       // Attempt to request image data without network access
+  //       PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
+  //         var result: [String: Any] = [:]
+
+  //         // Get creation date
+  //         if let creationDate = asset.creationDate {
+  //           result["createdAt"] = creationDate
+  //         }
+
+  //         if let error = info?[PHImageErrorKey] as? Error {
+  //           // Handle errors in fetching the image data
+  //           promise.reject(error)
+  //           dispatchGroup.leave()
+  //           semaphore.signal()
+  //           return
+  //         }
+
+  //         if let data = data {
+  //           // Extract EXIF, GPS, and TIFF metadata
+  //           if let source = CGImageSourceCreateWithData(data as NSData, nil),
+  //             let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+  //             result["exif"] = metadata["{Exif}"]
+  //             if let gpsData = metadata["{GPS}"] as? [String: Any] {
+  //               result["gps"] = gpsData
+  //             }
+  //             if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+  //               result["tiff"] = tiffData
+  //             }
+  //           }
+
+  //           // Get file size
+  //           let fileSize = data.count
+  //           result["fileSize"] = fileSize
+
+  //           // Append result to the results array in a thread-safe manner
+  //           resultQueue.async(flags: .barrier) {
+  //             results.append(result)
+  //           }
+            
+  //           // Resolve the promise with the result dictionary
+  //           dispatchGroup.leave()
+  //           semaphore.signal()
+  //         } else if let isInCloud = info?[PHImageResultIsInCloudKey] as? Bool, isInCloud && options.shouldDownloadFromNetwork {
+  //           // If the image is only in iCloud, fetch the smallest possible version to extract metadata
+  //           imageOptions.isNetworkAccessAllowed = true  // Allow network access for this request
+  //           let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
+  //           PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
+  //             guard let image = image else {
+  //               promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
+  //               dispatchGroup.leave()
+  //               semaphore.signal()
+  //               return
+  //             }
+
+  //             // Convert UIImage to CGImage and extract metadata
+  //             if let cgImage = image.cgImage,
+  //               let dataProvider = cgImage.dataProvider,
+  //               let imageData = dataProvider.data {
+  //               let imageDataPointer = CFDataGetBytePtr(imageData)  // Get the raw byte pointer
+  //               let imageDataLength = CFDataGetLength(imageData)    // Get the data length
+
+  //               // Create CFData from the raw byte pointer
+  //               let cfData = CFDataCreate(kCFAllocatorDefault, imageDataPointer, imageDataLength)
+                
+  //               if let source = CGImageSourceCreateWithData(cfData!, nil),
+  //                 let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+  //                 result["exif"] = metadata["{Exif}"]
+  //                 if let gpsData = metadata["{GPS}"] as? [String: Any] {
+  //                   result["gps"] = gpsData
+  //                 }
+  //                 if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+  //                   result["tiff"] = tiffData
+  //                 }
+  //               }
+  //             }
+
+  //             result["isNetworkAsset"] = true
+
+  //             // Append result to the results array in a thread-safe manner
+  //             resultQueue.async(flags: .barrier) {
+  //               results.append(result)
+  //             }
+              
+  //             dispatchGroup.leave()
+  //             semaphore.signal()
+  //           }
+  //         } else {
+  //           // Handle cases where data is nil and not in iCloud
+  //           result["exif"] = nil
+  //           resultQueue.async(flags: .barrier) {
+  //             results.append(result)
+  //           }
+  //           dispatchGroup.leave()
+  //           semaphore.signal()
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // Once all tasks are complete, resolve the promise with the results array
+  //   dispatchGroup.notify(queue: DispatchQueue.main) {
+  //     promise.resolve(results)
+  //   }
+  // }
 
   private func resolveVideo(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     // Configure PHVideoRequestOptions
