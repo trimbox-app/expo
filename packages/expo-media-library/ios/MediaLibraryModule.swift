@@ -339,36 +339,110 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
+  // Made up by GPT. Let's compare it to the function below and delete it (unless there are big diffs)
+  private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+    let localOptions = PHImageRequestOptions()
+    localOptions.isNetworkAccessAllowed = false
+    localOptions.deliveryMode = .fastFormat
+    localOptions.isSynchronous = false
+
+    // First, attempt to fetch the image locally
+    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: localOptions) { data, dataUTI, orientation, localInfo in
+        var result: [String: Any] = [:]
+
+        // Get creation date
+        if let creationDate = asset.creationDate {
+            result["createdAt"] = creationDate
+        }
+
+        if let data = data {
+            // Local asset processing
+            self.processImageData(data: data, result: &result)
+            result["isNetworkAsset"] = false
+            result["fileSize"] = data.count
+            promise.resolve(result)
+        } else {
+            // Asset not available locally, fetch from iCloud
+            let cloudOptions = PHImageRequestOptions()
+            cloudOptions.isNetworkAccessAllowed = true
+            // Try high quality
+            cloudOptions.deliveryMode = .fastFormat
+            cloudOptions.isSynchronous = false
+
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: cloudOptions) { data, dataUTI, orientation, cloudInfo in
+                guard let data = data else {
+                    promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data from iCloud"]))
+                    return
+                }
+
+                self.processImageData(data: data, result: &result)
+                result["isNetworkAsset"] = true
+                result["fileSize"] = data.count
+                promise.resolve(result)
+            }
+        }
+    }
+  } 
+
+  // Anthropic func (good shit, but I think requestImageData is deprecated)
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = true
-    imageOptions.isSynchronous = true
-    imageOptions.deliveryMode = .highQualityFormat
-    
-    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { imageData, dataUTI, orientation, info in
-        guard let imageData = imageData else {
-            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data"]))
-            return
-        }
-        
+    imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
+    imageOptions.deliveryMode = .fastFormat
+
+    // First, attempt to fetch the image locally using requestImageData
+    PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
         var result: [String: Any] = [:]
-        
-        if let source = CGImageSourceCreateWithData(imageData as CFData, nil),
-           let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-            result["exif"] = metadata["{Exif}"]
-            result["gps"] = metadata["{GPS}"]
-            result["tiff"] = metadata["{TIFF}"]
-        } else {
-            promise.reject(NSError(domain: "ImageFetch", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to extract metadata from image XYZ"]))
-            return
+
+        // Get creation date
+        if let creationDate = asset.creationDate {
+            result["createdAt"] = creationDate
         }
-        
-        result["isNetworkAsset"] = info?[PHImageResultIsInCloudKey] as? Bool ?? false
-        promise.resolve(result)
+
+        // If image data is available locally, process it
+        if let data = data {
+            self.processImageData(data: data, result: &result)
+            result["fileSize"] = data.count
+            result["isNetworkAsset"] = false
+            promise.resolve(result)
+        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 {
+            // Handle the case where the image is not available locally (error 3164)
+            imageOptions.isNetworkAccessAllowed = true  // Enable network access
+
+            // Fetch image data from iCloud
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, dataUTI, orientation, cloudInfo in
+                guard let data = data else {
+                    promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data from iCloud"]))
+                    return
+                }
+
+                self.processImageData(data: data, result: &result)
+                result["fileSize"] = data.count
+                result["isNetworkAsset"] = true
+                promise.resolve(result)
+            }
+        } else {
+            // Handle other errors or cases where image data is nil
+            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Image not available or other error"]))
+        }
     }
   }
 
-  private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+  private func processImageData(data: Data, result: inout [String: Any]) {
+    if let source = CGImageSourceCreateWithData(data as CFData, nil),
+       let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+        result["exif"] = metadata["{Exif}"]
+        if let gpsData = metadata["{GPS}"] as? [String: Any] {
+            result["gps"] = gpsData
+        }
+        if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+            result["tiff"] = tiffData
+        }
+    }
+  }
+
+  // What we've got in prod, which breaks for remote images
+  private func resolveImageProd(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
     imageOptions.deliveryMode = .fastFormat
@@ -448,7 +522,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
-  // private func resolveImage(assets: [PHAsset], options: AssetInfoOptions, promise: Promise) {
+  // private func resolveImageBatch(assets: [PHAsset], options: AssetInfoOptions, promise: Promise) {
   //   // Create a dispatch group to track the completion of all metadata extraction tasks
   //   let dispatchGroup = DispatchGroup()
     
