@@ -436,42 +436,46 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             result["isNetworkAsset"] = false
             promise.resolve(result)
 
-        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 && options.shouldDownloadFromNetwork {
-            // Handle the case where the image is not available locally (error 3164)
-            imageOptions.isNetworkAccessAllowed = true  // Enable network access
+        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 {
+            if options.shouldDownloadFromNetwork {
+              // Handle the case where the image is not available locally (error 3164)
+              imageOptions.isNetworkAccessAllowed = true  // Enable network access
 
-            // Fetch a minimal 1x1 pixel image from iCloud
-            let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
-            PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
-                guard let image = image else {
-                    promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
-                    return
-                }
+              // Fetch a minimal 1x1 pixel image from iCloud
+              let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
+              PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
+                  guard let image = image else {
+                      promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
+                      return
+                  }
 
-                // Convert UIImage to CGImage and extract metadata
-                if let cgImage = image.cgImage,
-                   let dataProvider = cgImage.dataProvider,
-                   let imageData = dataProvider.data {
-                    let imageDataPointer = CFDataGetBytePtr(imageData)  // Get the raw byte pointer
-                    let imageDataLength = CFDataGetLength(imageData)    // Get the data length
+                  // Convert UIImage to CGImage and extract metadata
+                  if let cgImage = image.cgImage,
+                    let dataProvider = cgImage.dataProvider,
+                    let imageData = dataProvider.data {
+                      let imageDataPointer = CFDataGetBytePtr(imageData)  // Get the raw byte pointer
+                      let imageDataLength = CFDataGetLength(imageData)    // Get the data length
 
-                    // Create CFData from the raw byte pointer
-                    let cfData = CFDataCreate(kCFAllocatorDefault, imageDataPointer, imageDataLength)
+                      // Create CFData from the raw byte pointer
+                      let cfData = CFDataCreate(kCFAllocatorDefault, imageDataPointer, imageDataLength)
 
-                    if let source = CGImageSourceCreateWithData(cfData!, nil),
-                       let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-                        result["exif"] = metadata["{Exif}"]
-                        if let gpsData = metadata["{GPS}"] as? [String: Any] {
-                            result["gps"] = gpsData
-                        }
-                        if let tiffData = metadata["{TIFF}"] as? [String: Any] {
-                            result["tiff"] = tiffData
-                        }
-                    }
-                }
+                      if let source = CGImageSourceCreateWithData(cfData!, nil),
+                        let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+                          result["exif"] = metadata["{Exif}"]
+                          if let gpsData = metadata["{GPS}"] as? [String: Any] {
+                              result["gps"] = gpsData
+                          }
+                          if let tiffData = metadata["{TIFF}"] as? [String: Any] {
+                              result["tiff"] = tiffData
+                          }
+                      }
+                  }
 
-                result["isNetworkAsset"] = true
-                promise.resolve(result)
+                  result["isNetworkAsset"] = true
+                  promise.resolve(result)
+              }
+            } else {
+              promise.resolve(nil) 
             }
         } else {
             // Handle other errors or cases where image data is nil
