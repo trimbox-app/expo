@@ -397,14 +397,13 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
-  // What we've got in prod, which breaks for remote images
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
+    imageOptions.isNetworkAccessAllowed = false  
     imageOptions.deliveryMode = .fastFormat
 
-    // First, attempt to fetch the image locally using requestImageData
-    PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
+  // First, attempt to fetch the image locally using requestImageData
+    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, dataUTI, orientation, info in
         var result: [String: Any] = [:]
 
         // Get creation date
@@ -412,22 +411,9 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             result["createdAt"] = creationDate
         }
 
-        // Test error
-        // promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "David test error"]))
-
         // If image data is available locally, process it
         if let data = data {
-            // Extract EXIF, GPS, and TIFF metadata
-            if let source = CGImageSourceCreateWithData(data as NSData, nil),
-               let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-                result["exif"] = metadata["{Exif}"]
-                if let gpsData = metadata["{GPS}"] as? [String: Any] {
-                    result["gps"] = gpsData
-                }
-                if let tiffData = metadata["{TIFF}"] as? [String: Any] {
-                    result["tiff"] = tiffData
-                }
-            }
+            self.processImageData(data: data, result: &result)
 
             // Get file size
             let fileSize = data.count
@@ -438,44 +424,23 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
 
         } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 {
             if options.shouldDownloadFromNetwork {
-              // Handle the case where the image is not available locally (error 3164)
-              imageOptions.isNetworkAccessAllowed = true  // Enable network access
+                // Handle the case where the image is not available locally (error 3164)
+                imageOptions.isNetworkAccessAllowed = true  // Enable network access
 
-              // Fetch a minimal 1x1 pixel image from iCloud
-              let targetSize = CGSize(width: 1, height: 1) // Minimal size, just a pixel
-              PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .default, options: imageOptions) { image, info in
-                  guard let image = image else {
-                      promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image or metadata from iCloud"]))
-                      return
-                  }
+                PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { imageData, dataUTI, orientation, info in
+                    guard let imageData = imageData else {
+                        promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data from iCloud"]))
+                        return
+                    }
 
-                  // Convert UIImage to CGImage and extract metadata
-                  if let cgImage = image.cgImage,
-                    let dataProvider = cgImage.dataProvider,
-                    let imageData = dataProvider.data {
-                      let imageDataPointer = CFDataGetBytePtr(imageData)  // Get the raw byte pointer
-                      let imageDataLength = CFDataGetLength(imageData)    // Get the data length
+                    self.processImageData(data: imageData, result: &result)
 
-                      // Create CFData from the raw byte pointer
-                      let cfData = CFDataCreate(kCFAllocatorDefault, imageDataPointer, imageDataLength)
-
-                      if let source = CGImageSourceCreateWithData(cfData!, nil),
-                        let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-                          result["exif"] = metadata["{Exif}"]
-                          if let gpsData = metadata["{GPS}"] as? [String: Any] {
-                              result["gps"] = gpsData
-                          }
-                          if let tiffData = metadata["{TIFF}"] as? [String: Any] {
-                              result["tiff"] = tiffData
-                          }
-                      }
-                  }
-
-                  result["isNetworkAsset"] = true
-                  promise.resolve(result)
-              }
+                    result["fileSize"] = imageData.count
+                    result["isNetworkAsset"] = true
+                    promise.resolve(result)
+                }
             } else {
-              promise.resolve(nil) 
+                promise.resolve(nil)
             }
         } else {
             // Handle other errors or cases where image data is nil
