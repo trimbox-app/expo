@@ -412,7 +412,8 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             result["createdAt"] = creationDate
         }
 
-        promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "David test error"]))
+        // Test error
+        // promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "David test error"]))
 
         // If image data is available locally, process it
         if let data = data {
@@ -432,7 +433,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             let fileSize = data.count
             result["fileSize"] = fileSize
 
-            // Resolve the promise with the result dictionary
+            result["isNetworkAsset"] = false
             promise.resolve(result)
 
         } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 && options.shouldDownloadFromNetwork {
