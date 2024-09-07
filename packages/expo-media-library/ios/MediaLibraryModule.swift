@@ -339,53 +339,9 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
-  // Made up by GPT. Let's compare it to the function below and delete it (unless there are big diffs)
-  private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    let localOptions = PHImageRequestOptions()
-    localOptions.isNetworkAccessAllowed = false
-    localOptions.deliveryMode = .fastFormat
-    localOptions.isSynchronous = false
-
-    // First, attempt to fetch the image locally
-    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: localOptions) { data, dataUTI, orientation, localInfo in
-        var result: [String: Any] = [:]
-
-        // Get creation date
-        if let creationDate = asset.creationDate {
-            result["createdAt"] = creationDate
-        }
-
-        if let data = data {
-            // Local asset processing
-            self.processImageData(data: data, result: &result)
-            result["isNetworkAsset"] = false
-            result["fileSize"] = data.count
-            promise.resolve(result)
-        } else {
-            // Asset not available locally, fetch from iCloud
-            let cloudOptions = PHImageRequestOptions()
-            cloudOptions.isNetworkAccessAllowed = true
-            // Try high quality
-            cloudOptions.deliveryMode = .fastFormat
-            cloudOptions.isSynchronous = false
-
-            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: cloudOptions) { data, dataUTI, orientation, cloudInfo in
-                guard let data = data else {
-                    promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data from iCloud"]))
-                    return
-                }
-
-                self.processImageData(data: data, result: &result)
-                result["isNetworkAsset"] = true
-                result["fileSize"] = data.count
-                promise.resolve(result)
-            }
-        }
-    }
-  } 
-
-  // Anthropic func (good shit, but I think requestImageData is deprecated)
-  private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+  // TODO - requestImageData is deprecated, so replace it with requestImageDataAndOrientation
+  // Anthropic claims that this is faster but mom and ross asy no
+  private func resolveImageNew(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
     imageOptions.deliveryMode = .fastFormat
@@ -405,7 +361,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             result["fileSize"] = data.count
             result["isNetworkAsset"] = false
             promise.resolve(result)
-        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 {
+        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 && options.shouldDownloadFromNetwork {
             // Handle the case where the image is not available locally (error 3164)
             imageOptions.isNetworkAccessAllowed = true  // Enable network access
 
@@ -442,7 +398,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   }
 
   // What we've got in prod, which breaks for remote images
-  private func resolveImageProd(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+  private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
     imageOptions.deliveryMode = .fastFormat
@@ -477,7 +433,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             // Resolve the promise with the result dictionary
             promise.resolve(result)
 
-        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 {
+        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 && options.shouldDownloadFromNetwork {
             // Handle the case where the image is not available locally (error 3164)
             imageOptions.isNetworkAccessAllowed = true  // Enable network access
 
