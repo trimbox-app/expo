@@ -412,6 +412,8 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             result["createdAt"] = creationDate
         }
 
+        promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "David test error"]))
+
         // If image data is available locally, process it
         if let data = data {
             // Extract EXIF, GPS, and TIFF metadata
@@ -470,7 +472,6 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
                 result["isNetworkAsset"] = true
                 promise.resolve(result)
             }
-
         } else {
             // Handle other errors or cases where image data is nil
             promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Image not available or other error"]))
