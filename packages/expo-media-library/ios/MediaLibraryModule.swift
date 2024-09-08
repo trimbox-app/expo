@@ -339,6 +339,41 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
+  private func resolveImageMetadata(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+    var result: [String: Any] = [:]
+
+    // // Get creation date
+    // if let creationDate = asset.creationDate {
+    //     let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
+    //     result["creationTime"] = timestamp
+    // }
+
+    // // Get creation date
+    // if let modificationDate = asset.modificationDate {
+    //     let timestamp = modificationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
+    //     result["modificationTime"] = timestamp
+    // }
+
+    // Try getting location coordinate
+    if let location = asset.location {
+        result["latitude"] = location.coordinate.latitude
+        result["longitude"] = location.coordinate.longitude
+        result["locationAccuracy"] = location.horizontalAccuracy
+        result["direction"] = location.course
+    }
+
+    // // Directly assign duration since it is not optional
+    // result["duration"] = asset.duration
+
+    // Directly assign isFavorite since it is not optional
+    result["isFavorite"] = asset.isFavorite
+
+    // Directly assign isEdited (hasAdjustments) since it is not optional
+    result["isEdited"] = asset.hasAdjustments
+
+    result["isNetworkAsset"] = false
+    promise.resolve(result)
+  }
 
   private func processImageData(data: Data, result: inout [String: Any]) {
     if let source = CGImageSourceCreateWithData(data as CFData, nil),
@@ -356,89 +391,25 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   }
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    var result: [String: Any] = [:]
-
-    // Get creation date
-    if let creationDate = asset.creationDate {
-        let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
-        result["creationTime"] = timestamp
-    }
-
-    // Get creation date
-    if let modificationDate = asset.modificationDate {
-        let timestamp = modificationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
-        result["modificationTime"] = timestamp
-    }
-
-    // Try getting location coordinate
-    if let location = asset.location {
-        result["latitude"] = location.coordinate.latitude
-        result["longitude"] = location.coordinate.longitude
-        result["locationAccuracy"] = location.horizontalAccuracy
-        result["course"] = location.course
-    }
-
-    // Directly assign duration since it is not optional
-    result["duration"] = asset.duration
-
-    // Directly assign isFavorite since it is not optional
-    result["isFavorite"] = asset.isFavorite
-
-    // Directly assign isEdited (hasAdjustments) since it is not optional
-    result["isEdited"] = asset.hasAdjustments
-
-    result["isNetworkAsset"] = false
-    promise.resolve(result)
-  }
-
-  private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = false  
     imageOptions.deliveryMode = .fastFormat
 
     var result: [String: Any] = [:]
 
-    // // Get creation date
-    // if let creationDate = asset.creationDate {
-    //     let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
-    //     result["creationTime"] = timestamp
-    // }
+    // Try getting location coordinate
+    if let location = asset.location {
+        result["latitude"] = location.coordinate.latitude
+        result["longitude"] = location.coordinate.longitude
+        result["locationAccuracy"] = location.horizontalAccuracy
+        result["direction"] = location.course
+    }
 
-    // // Get creation date
-    // if let modificationDate = asset.modificationDate {
-    //     let timestamp = modificationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
-    //     result["modificationTime"] = timestamp
-    // }
+    // Directly assign isFavorite since it is not optional
+    result["isFavorite"] = asset.isFavorite
 
-    // // Try getting location coordinate
-    // if let location = asset.location {
-    //     result["location"] = location.coordinate
-    // }
-
-    // // Try getting location accuracy
-    // if let course = asset.location {
-    //     result["locationAccuracy"] = location.horizontalAccuracy
-    // }
-
-    // // Try getting location direction
-    // if let course = asset.location {
-    //     result["course"] = location.course
-    // }
-
-    // // Try getting duration
-    // if let duration = asset.duration {
-    //     result["duration"] = duration
-    // }
-
-    // // Try getting isFavorite
-    // if let isFavorite = asset.isFavorite {
-    //     result["isFavorite"] = isFavorite
-    // }
-
-    // // Try getting isEdited
-    // if let isEdited = asset.hasAdjustments {
-    //     result["isEdited"] = isEdited
-    // }
+    // Directly assign isEdited (hasAdjustments) since it is not optional
+    result["isEdited"] = asset.hasAdjustments
 
     // First, attempt to fetch the image locally using requestImageData
     PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, dataUTI, orientation, info in
@@ -454,10 +425,12 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             promise.resolve(result)
 
         } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 {
+            
+            result["isNetworkAsset"] = true
+            
             if options.shouldDownloadFromNetwork {
                 // Handle the case where the image is not available locally (error 3164)
                 imageOptions.isNetworkAccessAllowed = true  // Enable network access
-
 
                 // Implementation 1:
                 PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { cloudData, cloudDataUTI, cloudOrientation, cloudInfo in
@@ -476,7 +449,6 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
                     self.processImageData(data: cloudData, result: &result)
 
                     result["fileSize"] = cloudData.count
-                    result["isNetworkAsset"] = true
                     promise.resolve(result)
                 }
 
@@ -499,7 +471,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
                 //     }
                 // }
             } else {
-                promise.resolve(nil)
+                promise.resolve(result)
             }
         } else {
             // Handle other errors or cases where image data is nil
