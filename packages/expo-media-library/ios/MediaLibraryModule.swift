@@ -386,7 +386,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
 
     // Check if asset is a network asset (iCloud-based)
-    result["isNetworkAsset"] = !asset.isLocallyAvailable
+    result["isNetworkAsset"] = true
 
     promise.resolve(result)
 }
