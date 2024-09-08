@@ -93,7 +93,7 @@ Run the following from packages/expo-media-library:
 ```bash
 git add .
 git commit -m "Updated ExpoMediaLibrary podspec with custom source"
-git tag 16.0.26
+git tag 16.0.46
 git push origin --tags
 ```
 
