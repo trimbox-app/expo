@@ -372,7 +372,8 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
 
     // Try getting location coordinate
     if let location = asset.location {
-        result["location"] = location.coordinate
+        result["latitude"] = location.coordinate.latitude
+        result["longitude"] = location.coordinate.longitude
         result["locationAccuracy"] = location.horizontalAccuracy
         result["course"] = location.course
     }
