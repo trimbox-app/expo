@@ -356,6 +356,21 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   }
 
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+    var result: [String: Any] = [:]
+
+    if let creationDate = asset.creationDate {
+        result["createdAt"] = creationDate
+    }
+
+    if let location = asset.location {
+        result["location"] = location
+    }
+
+    result["isNetworkAsset"] = false
+    promise.resolve(result)
+  }
+
+  private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = false  
     imageOptions.deliveryMode = .fastFormat
@@ -371,30 +386,6 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
 
         // Try getting general location
         if let location = data.location {
-            result["location"] = location
-        }
-
-        result["isNetworkAsset"] = false
-        promise.resolve(result)
-    }
-  }
-
-  private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = false  
-    imageOptions.deliveryMode = .fastFormat
-
-    // First, attempt to fetch the image locally using requestImageData
-    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, dataUTI, orientation, info in
-        var result: [String: Any] = [:]
-
-        // Get creation date
-        if let creationDate = asset.creationDate {
-            result["createdAt"] = creationDate
-        }
-
-        // Try getting general location
-        if let location = asset.location {
             result["location"] = location
         }
 
