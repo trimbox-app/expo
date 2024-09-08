@@ -355,7 +355,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
-  private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+  private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     var result: [String: Any] = [:]
 
     if let creationDate = asset.creationDate {
@@ -369,6 +369,28 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     result["isNetworkAsset"] = false
     promise.resolve(result)
   }
+
+  private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+    var result: [String: Any] = [:]
+
+    // Convert creationDate to a timestamp in milliseconds
+    if let creationDate = asset.creationDate {
+        let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
+        result["createdAt"] = timestamp
+    }
+
+    // Convert location to a string with latitude and longitude
+    if let location = asset.location {
+        let locationString = "\(location.coordinate.latitude), \(location.coordinate.longitude)"
+        result["location"] = locationString
+    }
+
+    // Check if asset is a network asset (iCloud-based)
+    result["isNetworkAsset"] = !asset.isLocallyAvailable
+
+    promise.resolve(result)
+}
+
 
   private func resolveImage2(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
