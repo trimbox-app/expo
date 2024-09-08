@@ -339,50 +339,6 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
-  // TODO - requestImageData is deprecated, so replace it with requestImageDataAndOrientation
-  // Anthropic claims that this is faster but mom and ross asy no
-  private func resolveImageNew(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = false  // First attempt without network access
-    imageOptions.deliveryMode = .fastFormat
-
-    // First, attempt to fetch the image locally using requestImageData
-    PHImageManager.default().requestImageData(for: asset, options: imageOptions) { data, uti, orientation, info in
-        var result: [String: Any] = [:]
-
-        // Get creation date
-        if let creationDate = asset.creationDate {
-            result["createdAt"] = creationDate
-        }
-
-        // If image data is available locally, process it
-        if let data = data {
-            self.processImageData(data: data, result: &result)
-            result["fileSize"] = data.count
-            result["isNetworkAsset"] = false
-            promise.resolve(result)
-        } else if let error = info?[PHImageErrorKey] as? NSError, error.domain == PHPhotosErrorDomain && error.code == 3164 && options.shouldDownloadFromNetwork {
-            // Handle the case where the image is not available locally (error 3164)
-            imageOptions.isNetworkAccessAllowed = true  // Enable network access
-
-            // Fetch image data from iCloud
-            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, dataUTI, orientation, cloudInfo in
-                guard let data = data else {
-                    promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data from iCloud"]))
-                    return
-                }
-
-                self.processImageData(data: data, result: &result)
-                result["fileSize"] = data.count
-                result["isNetworkAsset"] = true
-                promise.resolve(result)
-            }
-        } else {
-            // Handle other errors or cases where image data is nil
-            promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Image not available or other error"]))
-        }
-    }
-  }
 
   private func processImageData(data: Data, result: inout [String: Any]) {
     if let source = CGImageSourceCreateWithData(data as CFData, nil),
@@ -402,7 +358,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     imageOptions.isNetworkAccessAllowed = false  
     imageOptions.deliveryMode = .fastFormat
 
-  // First, attempt to fetch the image locally using requestImageData
+    // First, attempt to fetch the image locally using requestImageData
     PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, dataUTI, orientation, info in
         var result: [String: Any] = [:]
 
