@@ -358,25 +358,6 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     var result: [String: Any] = [:]
 
-    if let creationDate = asset.creationDate {
-        result["createdAt"] = creationDate
-    }
-
-    if let location = asset.location {
-        result["location"] = location
-    }
-
-    result["isNetworkAsset"] = false
-    promise.resolve(result)
-  }
-
-  private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-    let imageOptions = PHImageRequestOptions()
-    imageOptions.isNetworkAccessAllowed = false  
-    imageOptions.deliveryMode = .fastFormat
-
-    var result: [String: Any] = [:]
-
     // Get creation date
     if let creationDate = asset.creationDate {
         let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
@@ -418,6 +399,9 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     if let isEdited = asset.hasAdjustments {
         result["isEdited"] = isEdited
     }
+
+    result["isNetworkAsset"] = false
+    promise.resolve(result)
   }
 
   private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
