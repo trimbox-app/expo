@@ -365,12 +365,12 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
         var result: [String: Any] = [:]
 
         // Get creation date
-        if let creationDate = asset.creationDate {
+        if let creationDate = data.creationDate {
             result["createdAt"] = creationDate
         }
 
         // Try getting general location
-        if let location = asset.location {
+        if let location = data.location {
             result["location"] = location
         }
 
