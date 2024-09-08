@@ -343,7 +343,9 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
   private func processImageData(data: Data, result: inout [String: Any]) {
     if let source = CGImageSourceCreateWithData(data as CFData, nil),
        let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-        result["exif"] = metadata["{Exif}"]
+        if let exifData = metadata["{Exif}"] as? [String: Any] {
+            result["exif"] = exifData
+        }
         if let gpsData = metadata["{GPS}"] as? [String: Any] {
             result["gps"] = gpsData
         }
@@ -367,6 +369,11 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
             result["createdAt"] = creationDate
         }
 
+        // Try getting general location
+        if let location = asset.location {
+            result["location"] = location
+        }
+
         // If image data is available locally, process it
         if let data = data {
             self.processImageData(data: data, result: &result)
@@ -383,6 +390,8 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
                 // Handle the case where the image is not available locally (error 3164)
                 imageOptions.isNetworkAccessAllowed = true  // Enable network access
 
+
+                // Implementation 1:
                 PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { cloudData, cloudDataUTI, cloudOrientation, cloudInfo in
                     guard let cloudData = cloudData else {
                         // Check for an error from the cloudInfo dictionary
@@ -402,6 +411,25 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
                     result["isNetworkAsset"] = true
                     promise.resolve(result)
                 }
+
+                // Implementation 2:
+                // // Use requestImage to fetch a very small image (1x1 pixel) to get metadata
+                // let targetSize = CGSize(width: 1, height: 1)
+                // PHImageManager.default().requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFit, options: imageOptions) { image, info in
+                //     if let cloudData = info?[PHImageFileURLKey] as? URL, let imageData = try? Data(contentsOf: cloudData) {
+                //         self.processImageData(data: imageData, result: &result)
+
+                //         result["fileSize"] = imageData.count
+                //         result["isNetworkAsset"] = true
+                //         promise.resolve(result)
+                //     } else if let cloudError = info?[PHImageErrorKey] as? NSError {
+                //         promise.reject(cloudError)
+                //     } else {
+                //         // If no error is provided, use a hardcoded error
+                //         let error = NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image from iCloud"])
+                //         promise.reject(error)
+                //     }
+                // }
             } else {
                 promise.resolve(nil)
             }
