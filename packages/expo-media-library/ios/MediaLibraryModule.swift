@@ -383,15 +383,22 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
                 // Handle the case where the image is not available locally (error 3164)
                 imageOptions.isNetworkAccessAllowed = true  // Enable network access
 
-                PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { imageData, dataUTI, orientation, info in
-                    guard let imageData = imageData else {
-                        promise.reject(NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data from iCloud"]))
+                PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { cloudData, cloudDataUTI, cloudOrientation, cloudInfo in
+                    guard let cloudData = cloudData else {
+                        // Check for an error from the cloudInfo dictionary
+                        if let cloudError = cloudInfo?[PHImageErrorKey] as? NSError {
+                            promise.reject(cloudError)
+                        } else {
+                            // If no error is provided, use a hardcoded error
+                            let error = NSError(domain: "ImageFetch", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch image data from iCloud"])
+                            promise.reject(error)
+                        }
                         return
                     }
 
-                    self.processImageData(data: imageData, result: &result)
+                    self.processImageData(data: cloudData, result: &result)
 
-                    result["fileSize"] = imageData.count
+                    result["fileSize"] = cloudData.count
                     result["isNetworkAsset"] = true
                     promise.resolve(result)
                 }
