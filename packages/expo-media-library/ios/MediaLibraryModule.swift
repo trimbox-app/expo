@@ -355,7 +355,7 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     }
   }
 
-  private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+  private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     var result: [String: Any] = [:]
 
     // Get creation date
