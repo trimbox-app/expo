@@ -370,47 +370,107 @@ public class MediaLibraryModule: Module, PhotoLibraryObserverHandler {
     promise.resolve(result)
   }
 
-  // private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
-  //   var result: [String: Any] = [:]
-
-  //   // Convert creationDate to a timestamp in milliseconds
-  //   if let creationDate = asset.creationDate {
-  //       let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
-  //       result["createdAt"] = timestamp
-  //   }
-
-  //   // Convert location to a string with latitude and longitude
-  //   if let location = asset.location {
-  //       let locationString = "\(location.coordinate.latitude), \(location.coordinate.longitude)"
-  //       result["location"] = locationString
-  //   }
-
-  //   // Check if asset is a network asset (iCloud-based)
-  //   result["isNetworkAsset"] = true
-
-  //   promise.resolve(result)
-  // }
-
-
   private func resolveImage(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
     let imageOptions = PHImageRequestOptions()
     imageOptions.isNetworkAccessAllowed = false  
     imageOptions.deliveryMode = .fastFormat
 
+    var result: [String: Any] = [:]
+
+    // Get creation date
+    if let creationDate = asset.creationDate {
+        let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
+        result["creationTime"] = timestamp
+    }
+
+    // Get creation date
+    if let modificationDate = asset.modificationDate {
+        let timestamp = modificationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
+        result["modificationTime"] = timestamp
+    }
+
+    // Try getting location coordinate
+    if let location = asset.location {
+        result["location"] = location.coordinate
+    }
+
+    // Try getting location accuracy
+    if let course = asset.location {
+        result["locationAccuracy"] = location.horizontalAccuracy
+    }
+
+    // Try getting location direction
+    if let course = asset.location {
+        result["course"] = location.course
+    }
+
+    // Try getting duration
+    if let duration = asset.duration {
+        result["duration"] = duration
+    }
+
+    // Try getting isFavorite
+    if let isFavorite = asset.isFavorite {
+        result["isFavorite"] = isFavorite
+    }
+
+    // Try getting isEdited
+    if let isEdited = asset.hasAdjustments {
+        result["isEdited"] = isEdited
+    }
+  }
+
+  private func resolveImageX(asset: PHAsset, options: AssetInfoOptions, promise: Promise) {
+    let imageOptions = PHImageRequestOptions()
+    imageOptions.isNetworkAccessAllowed = false  
+    imageOptions.deliveryMode = .fastFormat
+
+    var result: [String: Any] = [:]
+
+    // Get creation date
+    if let creationDate = asset.creationDate {
+        let timestamp = creationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
+        result["creationTime"] = timestamp
+    }
+
+    // Get creation date
+    if let modificationDate = asset.modificationDate {
+        let timestamp = modificationDate.timeIntervalSince1970 * 1000 // Convert to milliseconds
+        result["modificationTime"] = timestamp
+    }
+
+    // Try getting location coordinate
+    if let location = asset.location {
+        result["location"] = location.coordinate
+    }
+
+    // Try getting location accuracy
+    if let course = asset.location {
+        result["locationAccuracy"] = location.horizontalAccuracy
+    }
+
+    // Try getting location direction
+    if let course = asset.location {
+        result["course"] = location.course
+    }
+
+    // Try getting duration
+    if let duration = asset.duration {
+        result["duration"] = duration
+    }
+
+    // Try getting isFavorite
+    if let isFavorite = asset.isFavorite {
+        result["isFavorite"] = isFavorite
+    }
+
+    // Try getting isEdited
+    if let isEdited = asset.hasAdjustments {
+        result["isEdited"] = isEdited
+    }
+
     // First, attempt to fetch the image locally using requestImageData
     PHImageManager.default().requestImageDataAndOrientation(for: asset, options: imageOptions) { data, dataUTI, orientation, info in
-        var result: [String: Any] = [:]
-
-        // Get creation date
-        if let creationDate = asset.creationDate {
-            result["createdAt"] = creationDate
-        }
-
-        // Try getting general location
-        if let location = asset.location {
-            result["location"] = location
-        }
-
         // If image data is available locally, process it
         if let data = data {
             self.processImageData(data: data, result: &result)
