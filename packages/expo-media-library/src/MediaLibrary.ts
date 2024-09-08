@@ -113,6 +113,75 @@ export type Asset = {
   albumId?: string;
 };
 
+type ExifData = {
+  ApertureValue: number;
+  BrightnessValue: number;
+  ColorSpace: number;
+  CompositeImage: number;
+  DateTimeDigitized: string;
+  DateTimeOriginal: string;
+  ExifVersion: number[];
+  ExposureBiasValue: number;
+  ExposureMode: number;
+  ExposureProgram: number;
+  ExposureTime: number;
+  FNumber: number;
+  Flash: number;
+  FocalLenIn35mmFilm: number;
+  FocalLength: number;
+  ISOSpeedRatings: number[];
+  LensMake: string;
+  LensModel: string;
+  LensSpecification: number[];
+  MeteringMode: number;
+  OffsetTime: string;
+  OffsetTimeDigitized: string;
+  OffsetTimeOriginal: string;
+  PixelXDimension: number;
+  PixelYDimension: number;
+  SceneType: number;
+  SensingMethod: number;
+  ShutterSpeedValue: number;
+  SubjectArea: number[];
+  SubsecTime: string;
+  SubsecTimeDigitized: string;
+  SubsecTimeOriginal: string;
+  WhiteBalance: number;
+  UserComment?: string;
+};
+
+type GpsData = {
+  Altitude: number;
+  AltitudeRef: number;
+  DateStamp: string;
+  DestBearing: number;
+  DestBearingRef: string;
+  HPositioningError: number;
+  ImgDirection: number;
+  ImgDirectionRef: string;
+  Latitude: number;
+  LatitudeRef: string;
+  Longitude: number;
+  LongitudeRef: string;
+  Speed: number;
+  SpeedRef: string;
+  TimeStamp: string;
+};
+
+type TiffData = {
+  DateTime: string;
+  HostComputer: string;
+  Make: string;
+  Model: string;
+  Orientation: number;
+  ResolutionUnit: number;
+  Software: string;
+  TileLength: number;
+  TileWidth: number;
+  XResolution: number;
+  YResolution: number;
+};
+
 // @needsAudit
 export type AssetInfo = Asset & {
   /**
@@ -122,18 +191,6 @@ export type AssetInfo = Asset & {
   latitude?: number;
   longitude?: number;
   locationAccuracy?: number;
-  /**
-   * EXIF metadata associated with the image.
-   */
-  exif?: object;
-  /**
-   * GPS metadata associated with the image.
-   */
-  gps?: object;
-  /**
-   * TIFF metadata associated with the image.
-   */
-  tiff?: object;
   /**
    * Whether the asset is marked as favorite.
    * @platform ios
@@ -145,16 +202,29 @@ export type AssetInfo = Asset & {
    */
   isEdited?: boolean;
   /**
-   * The file size in bytes (only available if image is local)
-   * @platform ios
-   */
-  fileSize?: number;
-  /**
    * This field is available only if flag `shouldDownloadFromNetwork` is set to `false`.
    * Whether the asset is stored on the network (iCloud on iOS).
    * @platform ios
    */
   isNetworkAsset?: boolean; //iOS only
+  ///// Only available if the asset is available locally:
+  /**
+   * The file size in bytes (only available if image is local)
+   * @platform ios
+   */
+  fileSize?: number;
+  /**
+   * EXIF metadata associated with the image.
+   */
+  exif?: ExifData;
+  /**
+   * GPS metadata associated with the image.
+   */
+  gps?: GpsData;
+  /**
+   * TIFF metadata associated with the image.
+   */
+  tiff?: TiffData;
 };
 
 /**

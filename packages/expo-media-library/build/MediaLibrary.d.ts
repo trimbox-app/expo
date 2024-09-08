@@ -86,35 +86,45 @@ export type Asset = {
 };
 export type AssetInfo = Asset & {
     /**
-     * Local URI for the asset.
+     * GPS data if available
      */
-    localUri?: string;
-    /**
-     * GPS location if available.
-     */
-    location?: Location;
+    direction?: number;
+    latitude?: number;
+    longitude?: number;
+    locationAccuracy?: number;
     /**
      * EXIF metadata associated with the image.
      */
     exif?: object;
+    /**
+     * GPS metadata associated with the image.
+     */
+    gps?: object;
+    /**
+     * TIFF metadata associated with the image.
+     */
+    tiff?: object;
     /**
      * Whether the asset is marked as favorite.
      * @platform ios
      */
     isFavorite?: boolean;
     /**
+     * Whether the asset has been edited
+     * @platform ios
+     */
+    isEdited?: boolean;
+    /**
+     * The file size in bytes (only available if image is local)
+     * @platform ios
+     */
+    fileSize?: number;
+    /**
      * This field is available only if flag `shouldDownloadFromNetwork` is set to `false`.
      * Whether the asset is stored on the network (iCloud on iOS).
      * @platform ios
      */
     isNetworkAsset?: boolean;
-    /**
-     * Display orientation of the image. Orientation is available only for assets whose
-     * `mediaType` is `MediaType.photo`. Value will range from 1 to 8, see [EXIF orientation specification](http://sylvana.net/jpegcrop/exif_orientation.html)
-     * for more details.
-     * @platform ios
-     */
-    orientation?: number;
 };
 /**
  * Constants identifying specific variations of asset media, such as panorama or screenshot photos,
